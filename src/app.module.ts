@@ -1,24 +1,24 @@
 import { Module } from '@nestjs/common';
 import { NovaModule } from '@ahincho/nova-nestjs';
 import { CoursesModule } from './features/courses/courses.module';
+import { exampleProfile } from './profile';
 import { academic } from './upstream/academic/academic.config';
 import { AcademicModule } from './upstream/academic/academic.module';
 
 @Module({
   imports: [
     NovaModule.forRoot({
+      // Las convenciones de la organización: el prefijo y la ruta heredada de
+      // salud. Lo que se declara abajo se suma a ellas o las pisa.
+      profile: exampleProfile,
+
       // Declara el upstream. Si ACADEMIC_URL no está inyectada, el servicio no
       // arranca y el error la nombra, en vez de responder 500 la primera vez
       // que alguien llame la ruta que la necesita.
       config: { load: [academic] },
 
+      // La ruta heredada viene del perfil; acá va sólo lo de este servicio.
       health: {
-        // La ruta que el target group ya revisa. Un servicio que nace hoy sólo
-        // necesita `/health/live` y `/health/ready`; uno que ya está desplegado
-        // no puede mover la suya sin recrear el target group, así que la sirve
-        // en paralelo hasta que la infraestructura apunte a la nueva.
-        legacyPath: 'api/v1/health',
-
         // Tras SIGTERM el servicio sigue vivo esta ventana y termina lo que
         // tenga en vuelo; `ready` y la ruta heredada contestan 503 mientras
         // tanto.
