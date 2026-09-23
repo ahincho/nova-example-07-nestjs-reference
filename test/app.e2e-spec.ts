@@ -2,7 +2,12 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { setupOpenApi, validationExceptionFactory } from '@ahincho/nova-nestjs';
+import {
+  NOVA_HTTP_TRANSPORT,
+  setupOpenApi,
+  validationExceptionFactory,
+  type HttpTransportInit,
+} from '@ahincho/nova-nestjs';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from '../src/app.module';
 import type { Mock } from 'vitest';
@@ -12,8 +17,9 @@ import type { Mock } from 'vitest';
  * envuelve, que un DTO fallido vuelve con una entrada por campo, que las sondas
  * quedan fuera del prefijo global y que el id de correlación vuelve.
  *
- * El upstream se reemplaza mockeando `fetch`, que es lo que usa el cliente HTTP
- * del framework por dentro.
+ * El upstream se reemplaza con el transporte del cliente HTTP del framework,
+ * `NOVA_HTTP_TRANSPORT`. Asignar `global.fetch` ya no alcanza: el cliente usa el
+ * `fetch` de undici, no el global.
  */
 
 /** El sobre estándar, para tipar lo que devuelve supertest. */
@@ -47,8 +53,8 @@ function bodyOf<T>(response: { body: unknown }): T {
   return response.body as T;
 }
 
-/** Los argumentos de `fetch`, para tipar el mock y sus llamadas registradas. */
-type FetchArgs = [input: string, init?: RequestInit];
+/** Los argumentos del transporte, para tipar el mock y sus llamadas registradas. */
+type FetchArgs = [input: string, init?: HttpTransportInit];
 
 describe('the example service', () => {
   let app: INestApplication<App>;
@@ -60,7 +66,14 @@ describe('the example service', () => {
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      // El proveedor se fija una vez; cada prueba cambia el mock al que
+      // delega, así que el reemplazo no tiene que rehacerse.
+      .overrideProvider(NOVA_HTTP_TRANSPORT)
+      .useValue((input: string, init?: HttpTransportInit) =>
+        fetchMock(input, init),
+      )
+      .compile();
 
     app = moduleRef.createNestApplication();
 
@@ -89,7 +102,6 @@ describe('the example service', () => {
 
   beforeEach(() => {
     fetchMock = vi.fn<(...args: FetchArgs) => Promise<Response>>();
-    global.fetch = fetchMock as unknown as typeof fetch;
   });
 
   afterAll(async () => {
