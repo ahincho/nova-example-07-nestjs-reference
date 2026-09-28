@@ -320,3 +320,7 @@ Por eso el pipeline tiene un paso `Peers` que lo pide explícitamente.
 `ACADEMIC_URL` es obligatoria a propósito: un servicio al que nunca le
 inyectaron la URL muere al arrancar nombrando la variable, en vez de responder
 500 la primera vez que alguien llame esa ruta.
+
+## Licencia
+
+[EPL-2.0](LICENSE), igual que el resto de Nova Platform.
