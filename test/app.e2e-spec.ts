@@ -179,8 +179,10 @@ describe('the example service', () => {
         .query({ periodId: 2026 })
         .expect(502);
 
+      // El código del status (ADR-031) le dice al cliente si reintentar, sin
+      // nombrar al upstream.
       expect(bodyOf<Envelope<null>>(response).errors[0]?.code).toBe(
-        'INTERNAL_SERVER_ERROR',
+        'BAD_GATEWAY',
       );
       expect(JSON.stringify(response.body)).not.toContain('academic-db');
     });
@@ -334,12 +336,11 @@ describe('the example service', () => {
 
       expect(responses?.['404']?.description).toBe('NOT_FOUND');
 
-      // Los dos fallos de upstream se documentan con el mismo codigo, porque
-      // es lo que el filtro devuelve: todo 5xx colapsa a INTERNAL_SERVER_ERROR
-      // a proposito, ya que distinguirle un 502 de un 504 a quien llama le
-      // cuenta como esta armada nuestra topologia.
-      expect(responses?.['502']?.description).toBe('INTERNAL_SERVER_ERROR');
-      expect(responses?.['504']?.description).toBe('INTERNAL_SERVER_ERROR');
+      // Cada fallo de upstream con el código de su status, que es lo que el
+      // filtro devuelve (ADR-031): le dice a quien llama si conviene reintentar,
+      // y el proveedor queda en el log.
+      expect(responses?.['502']?.description).toBe('BAD_GATEWAY');
+      expect(responses?.['504']?.description).toBe('GATEWAY_TIMEOUT');
     });
 
     // La documentacion no hereda el prefijo: si lo heredara, pasar de v1 a v2
