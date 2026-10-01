@@ -2,7 +2,12 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { setupOpenApi, validationExceptionFactory } from '@ahincho/nova-nestjs';
+import {
+  NOVA_HTTP_TRANSPORT,
+  setupOpenApi,
+  validationExceptionFactory,
+  type HttpTransportInit,
+} from '@ahincho/nova-nestjs';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from '../src/app.module';
 import type { Mock } from 'vitest';
@@ -12,8 +17,9 @@ import type { Mock } from 'vitest';
  * envuelve, que un DTO fallido vuelve con una entrada por campo, que las sondas
  * quedan fuera del prefijo global y que el id de correlación vuelve.
  *
- * El upstream se reemplaza mockeando `fetch`, que es lo que usa el cliente HTTP
- * del framework por dentro.
+ * El upstream se reemplaza con el transporte del cliente HTTP del framework,
+ * `NOVA_HTTP_TRANSPORT`. Asignar `global.fetch` ya no alcanza: el cliente usa el
+ * `fetch` de undici, no el global.
  */
 
 /** El sobre estándar, para tipar lo que devuelve supertest. */
@@ -47,8 +53,8 @@ function bodyOf<T>(response: { body: unknown }): T {
   return response.body as T;
 }
 
-/** Los argumentos de `fetch`, para tipar el mock y sus llamadas registradas. */
-type FetchArgs = [input: string, init?: RequestInit];
+/** Los argumentos del transporte, para tipar el mock y sus llamadas registradas. */
+type FetchArgs = [input: string, init?: HttpTransportInit];
 
 describe('the example service', () => {
   let app: INestApplication<App>;
@@ -60,7 +66,14 @@ describe('the example service', () => {
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      // El proveedor se fija una vez; cada prueba cambia el mock al que
+      // delega, así que el reemplazo no tiene que rehacerse.
+      .overrideProvider(NOVA_HTTP_TRANSPORT)
+      .useValue((input: string, init?: HttpTransportInit) =>
+        fetchMock(input, init),
+      )
+      .compile();
 
     app = moduleRef.createNestApplication();
 
@@ -89,7 +102,6 @@ describe('the example service', () => {
 
   beforeEach(() => {
     fetchMock = vi.fn<(...args: FetchArgs) => Promise<Response>>();
-    global.fetch = fetchMock as unknown as typeof fetch;
   });
 
   afterAll(async () => {
@@ -167,8 +179,10 @@ describe('the example service', () => {
         .query({ periodId: 2026 })
         .expect(502);
 
+      // El código del status (ADR-031) le dice al cliente si reintentar, sin
+      // nombrar al upstream.
       expect(bodyOf<Envelope<null>>(response).errors[0]?.code).toBe(
-        'INTERNAL_SERVER_ERROR',
+        'BAD_GATEWAY',
       );
       expect(JSON.stringify(response.body)).not.toContain('academic-db');
     });
@@ -322,12 +336,11 @@ describe('the example service', () => {
 
       expect(responses?.['404']?.description).toBe('NOT_FOUND');
 
-      // Los dos fallos de upstream se documentan con el mismo codigo, porque
-      // es lo que el filtro devuelve: todo 5xx colapsa a INTERNAL_SERVER_ERROR
-      // a proposito, ya que distinguirle un 502 de un 504 a quien llama le
-      // cuenta como esta armada nuestra topologia.
-      expect(responses?.['502']?.description).toBe('INTERNAL_SERVER_ERROR');
-      expect(responses?.['504']?.description).toBe('INTERNAL_SERVER_ERROR');
+      // Cada fallo de upstream con el código de su status, que es lo que el
+      // filtro devuelve (ADR-031): le dice a quien llama si conviene reintentar,
+      // y el proveedor queda en el log.
+      expect(responses?.['502']?.description).toBe('BAD_GATEWAY');
+      expect(responses?.['504']?.description).toBe('GATEWAY_TIMEOUT');
     });
 
     // La documentacion no hereda el prefijo: si lo heredara, pasar de v1 a v2
