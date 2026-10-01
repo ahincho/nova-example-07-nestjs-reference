@@ -1,7 +1,7 @@
 # nova-nestjs-example
 
 Servicio NestJS de referencia construido sobre el meta-framework
-[Nova Platform](https://github.com/ahincho/nova-nestjs).
+[Nova Platform](https://github.com/ahincho/nova-nestjs-01-platform).
 
 Existe para dos cosas: mostrar cómo se integra la plataforma en un proyecto
 nuevo, y servir de canario — siempre corre contra la última versión publicada,
@@ -110,7 +110,7 @@ las que estaban en vuelo. Una conexión TCP nueva, en cambio, recibe
 `ECONNREFUSED`: el listener ya dejó de aceptar y no hay petición HTTP que
 contestar. **Probarlo con un `curl` suelto muestra el rechazo y no el 503**, así
 que parece roto cuando no lo está; el detalle medido está en el
-[doc de salud de la plataforma](https://github.com/ahincho/nova-nestjs/blob/main/packages/core/docs/health.md#el-503-del-apagado-es-sobre-conexiones-ya-abiertas).
+[doc de salud de la plataforma](https://github.com/ahincho/nova-nestjs-01-platform/blob/main/packages/core/docs/health.md#el-503-del-apagado-es-sobre-conexiones-ya-abiertas).
 
 Un chequeo de disponibilidad **no llama al upstream a propósito**. Si `ready`
 cayera cuando `academic` se cae, el orquestador reiniciaría tareas sanas de este
@@ -320,3 +320,7 @@ Por eso el pipeline tiene un paso `Peers` que lo pide explícitamente.
 `ACADEMIC_URL` es obligatoria a propósito: un servicio al que nunca le
 inyectaron la URL muere al arrancar nombrando la variable, en vez de responder
 500 la primera vez que alguien llame esa ruta.
+
+## Licencia
+
+[EPL-2.0](LICENSE), igual que el resto de Nova Platform.
